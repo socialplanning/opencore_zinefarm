@@ -88,8 +88,8 @@ class ZineFarm(object):
 
         instance = self.get_instance_folder(environ)
         dburi = "sqlite:///%s/database.db" % instance
-        if not os.path.exists(os.path.dirname(dburi)):
-            os.mkdir(os.path.dirname(dburi))
+        if not os.path.exists(instance):
+            os.makedirs(instance)
         new_instance(dburi,
                      instance,
                      blog_url)

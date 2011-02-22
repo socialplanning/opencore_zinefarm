@@ -19,7 +19,7 @@ class OpencoreRequest(Request):
             return User.query.get_nobody()
 
         secret_filename = self.environ['OPENCORE_SECRET_FILENAME']
-        
+
         try:
             username, auth = libopencore.auth.authenticate_from_cookie(
                 morsel.value, 
@@ -36,6 +36,10 @@ class OpencoreRequest(Request):
             user = User(username, 
                         'testy',
                         'ejucovy@gmail.com')
+
+        print [g.name for g in user.groups]
+
+        #fixup_local_user_record(user, self)
         return user
 
 from zine.application import Zine
@@ -86,13 +90,16 @@ def fixup_local_user_record(user, request):
                               request.environ)
     print role
 
-    user = User.query.filter_by(username=username).first()
+    #user = User.query.filter_by(username=username).first()
 
     remove_virtual_groups(user)
 
     group = Group.query.filter_by(name=role).first()
 
     user.groups.append(group)
+
+    from zine.api import db
+    db.commit()
 
 def remove_virtual_groups(user):
     if not user.is_somebody:
