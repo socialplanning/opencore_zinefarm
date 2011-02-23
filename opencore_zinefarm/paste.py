@@ -4,8 +4,11 @@ from libopencore import auth
 from opencore_zinefarm.opencoreglue import CustomRequestApp
 from opencore_zinefarm.opencoreglue import find_role_for_user
 from opencore_zinefarm.opencoreglue import new_instance
-from webob import Request
+from webob import Request, Response
 import webob.exc 
+
+class IndexPage(Exception):
+    pass
 
 class ZineFarm(object):
     def __init__(self, zine_instances_directory,
@@ -19,8 +22,13 @@ class ZineFarm(object):
 
     def get_instance_folder(self, environ):
         project = environ.get('HTTP_X_OPENPLANS_PROJECT')
+
+        blog = Request(environ).path_info_peek()
+        if not blog:
+            raise IndexPage
+
         instance_folder = os.path.join(
-            self.zine_instances_directory, project)
+            self.zine_instances_directory, project, blog)
         return instance_folder
 
     def __call__(self, environ, start_response):
@@ -29,7 +37,6 @@ class ZineFarm(object):
         project = environ.get('HTTP_X_OPENPLANS_PROJECT')
         if not project: 
             return webob.exc.HTTPNotFound("No blog found for project %s" % project)(environ, start_response)
-        instance_folder = self.get_instance_folder(environ)
 
         # we use a copy of the environ because it's rude to modify 
         # the environ in place; something upstream of us might not
@@ -54,8 +61,13 @@ class ZineFarm(object):
 
         req = Request(environ_copy)
 
-        if req.path_info == '/opencore-create-blog':
+        if not req.path_info_peek():
+            return self.index_page(req)(environ, start_response)
+
+        if req.path_info.endswith("create"):
             return self.make_instance(environ_copy, start_response)
+
+        req.path_info_pop()
 
         # zine makes it very difficult to instantiate its wsgi app for some reason
         # you have to much around with another module's global
@@ -63,9 +75,20 @@ class ZineFarm(object):
         app = object.__new__(CustomRequestApp)
         from zine import _core
         _core._application = app
+
+        instance_folder = self.get_instance_folder(environ)
         app.__init__(instance_folder)
 
         return app(environ_copy, start_response)
+
+    def index_page(self, req):
+        project = req.environ.get('HTTP_X_OPENPLANS_PROJECT')
+        index_folder = os.path.join(
+            self.zine_instances_directory, project)
+        if not os.path.exists(index_folder):
+            os.makedirs(index_folder)
+        blogs = os.listdir(index_folder)
+        return Response(" ".join(blogs))
 
     def make_instance(self, environ, start_response):
         req = Request(environ)
@@ -81,10 +104,12 @@ class ZineFarm(object):
             return webob.exc.HTTPForbidden("can't do that now")(
                 environ, start_response)
 
-        blog_url = "%s://%s%s" % (
+        blog_url = "%s://%s%s/%s" % (
             environ['HTTP_X_FORWARDED_SCHEME'],
             environ['HTTP_X_FORWARDED_SERVER'],
-            environ['HTTP_X_FORWARDED_PATH'])
+            environ['HTTP_X_FORWARDED_PATH'],
+            Request(environ).path_info_peek())
+        print blog_url
 
         instance = self.get_instance_folder(environ)
         dburi = "sqlite:///%s/database.db" % instance
