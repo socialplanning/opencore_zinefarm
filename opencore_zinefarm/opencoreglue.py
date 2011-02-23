@@ -39,7 +39,7 @@ class OpencoreRequest(Request):
 
         print [g.name for g in user.groups]
 
-        #fixup_local_user_record(user, self)
+        fixup_local_user_record(user, self)
         return user
 
 from zine.application import Zine
@@ -88,26 +88,26 @@ def fixup_local_user_record(user, request):
     role = find_role_for_user(username, 
                               request.environ['HTTP_X_OPENPLANS_PROJECT'],
                               request.environ)
-    print role
 
-    #user = User.query.filter_by(username=username).first()
-
-    remove_virtual_groups(user)
-
-    group = Group.query.filter_by(name=role).first()
-
-    user.groups.append(group)
+    ensure_proper_group(user, role)
 
     from zine.api import db
     db.commit()
 
-def remove_virtual_groups(user):
+def ensure_proper_group(user, role):
     if not user.is_somebody:
         return
 
+    user_has_role = False
     for g in user.groups:
-        if g.name != "BlogAdmin":
+        if g.name != role:
             user.groups.remove(g)
+        else:
+            user_has_role = True
+
+    if not user_has_role:
+        group = Group.query.filter_by(name=role).first()
+        user.groups.append(group)
 
 fix = fixup_local_user_record
 
@@ -124,6 +124,7 @@ def setup_groups():
     manager = Group(name="BlogAdmin")
     member = Group(name="ProjectMember")
     auth = Group(name="Authenticated")
+
     from zine.privileges import DEFAULT_PRIVILEGES
 
     admin.privileges.add(DEFAULT_PRIVILEGES['BLOG_ADMIN'])
@@ -133,8 +134,8 @@ def setup_groups():
     member.privileges.add(DEFAULT_PRIVILEGES['EDIT_OTHER_ENTRIES'])
     member.privileges.add(DEFAULT_PRIVILEGES['ENTER_ADMIN_PANEL'])
     
-    auth.privileges.add(DEFAULT_PRIVILEGES['ENTER_ADMIN_PANEL'])
     auth.privileges.add(DEFAULT_PRIVILEGES['CREATE_ENTRIES'])
+    auth.privileges.add(DEFAULT_PRIVILEGES['ENTER_ADMIN_PANEL'])
 
 def new_instance(database_uri, instance_folder, blog_url):
     e = db.create_engine(database_uri, 
