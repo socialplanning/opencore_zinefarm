@@ -94,13 +94,14 @@ def fixup_local_user_record(user, request):
     from zine.api import db
     db.commit()
 
+SPECIAL_GROUPS = ("ProjectAdmin", "ProjectMember", "Authenticated")
 def ensure_proper_group(user, role):
     if not user.is_somebody:
         return
 
     user_has_role = False
     for g in user.groups:
-        if g.name != role:
+        if g.name != role and g.name in SPECIAL_GROUPS:
             user.groups.remove(g)
         else:
             user_has_role = True
