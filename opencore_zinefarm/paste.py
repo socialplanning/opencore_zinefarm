@@ -14,11 +14,13 @@ class ZineFarm(object):
     def __init__(self, zine_instances_directory,
                  shared_secret_filename,
                  admin_info_filename,
-                 internal_root_url):
+                 internal_root_url,
+                 public_root_url):
         self.zine_instances_directory = zine_instances_directory
         self.shared_secret_filename = shared_secret_filename
         self.admin_info_filename = admin_info_filename
         self.internal_root_url = internal_root_url
+        self.public_root_url = public_root_url
 
     def get_instance_folder(self, environ):
         project = environ.get('HTTP_X_OPENPLANS_PROJECT')
@@ -59,8 +61,10 @@ class ZineFarm(object):
         # projects for their security policies and memberships
         environ_copy['OPENCORE_INTERNAL_ROOT_URL']  = self.internal_root_url
 
-        req = Request(environ_copy)
+        environ_copy['SCRIPT_NAME'] = environ_copy['HTTP_X_FORWARDED_PATH']
 
+        req = Request(environ_copy)
+        print req.path_info_peek()
         if not req.path_info_peek():
             return self.index_page(req)(environ, start_response)
 
@@ -79,7 +83,17 @@ class ZineFarm(object):
         instance_folder = self.get_instance_folder(environ)
         app.__init__(instance_folder)
 
-        return app(environ_copy, start_response)
+        resp = req.get_response(app)
+        if resp.status_int == 403:
+            if req.remote_user is None:
+                resp = webob.exc.HTTPFound()
+                resp.location = '/'.join((
+                        self.public_root_url.rstrip("/"),
+                        "login")) + \
+                        "?came_from=" + \
+                        req.path
+
+        return resp(environ_copy, start_response)
 
     def index_page(self, req):
         project = req.environ.get('HTTP_X_OPENPLANS_PROJECT')
@@ -126,6 +140,7 @@ def app_factory(global_conf,
                 shared_secret_filename=None,
                 admin_info_filename=None,
                 internal_root_url=None,
+                public_root_url=None,
                 **kw):
     assert zine_instances_directory is not None, \
         "zine_instances_directory must be supplied"
@@ -137,8 +152,11 @@ def app_factory(global_conf,
         "admin_info_filename must be supplied and must be an existing file"
     assert internal_root_url is not None, \
         "internal_root_url must be supplied"
+    assert public_root_url is not None, \
+        "public_root_url must be supplied"
     
     return ZineFarm(zine_instances_directory, 
                     shared_secret_filename,
                     admin_info_filename,
-                    internal_root_url)
+                    internal_root_url, 
+                    public_root_url)
