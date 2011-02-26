@@ -127,10 +127,10 @@ class ZineFarm(object):
 
         blog_url = '/'.join((Request(environ).application_url, 
                              Request(environ).path_info_peek()))
-        # blog_url must end in a trailing slash for url generation to work properly
-        # otherwise zine.utils.http:make_external_url will swallow it when building urls
-        # to posts; make_external_url("http://coactivate.org/foo", "bar/baz") -> "http://coactivate.org/bar/baz")
-        # but make_external_url("http://coactivate.org/foo/", "bar/baz") -> "http://coactivate.org/foo/bar/baz")
+        # blog_url must end in a trailing slash for url generation to work properly,
+        # otherwise zine.utils.http:make_external_url will swallow it when building urls to posts;
+        #  make_external_url("http://coactivate.org/foo", "bar/baz") -> "http://coactivate.org/bar/baz")
+        #  make_external_url("http://coactivate.org/foo/", "bar/baz") -> "http://coactivate.org/foo/bar/baz")
         blog_url = blog_url.rstrip("/") + '/'
 
         instance = self.get_instance_folder(environ)
